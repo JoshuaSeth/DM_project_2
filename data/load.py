@@ -127,7 +127,7 @@ def engineer_ft(df, ft_eng_df, col_1, col_2, op_str):
             engineer_ft(df, ft_eng_df, col_1, col_name, op_str)
     elif op_str == 'all':
         for operator in tqdm(['diff', 'div', 'mult']):
-            engineer_ft(df, ft_eng_df, col_1, col_name, operator)
+            engineer_ft(df, ft_eng_df, col_1, col_2, operator)
     
     # If this was no recursion (or the bottom of the recursion)
     if 'all' not in [col_1, col_2, op_str]:

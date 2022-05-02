@@ -1,7 +1,8 @@
 # Group 71 DM stuff
 *.csv
 .csv
-
+.h5 
+*.h5
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -19,11 +19,13 @@ load_data(test=False, add_day_parts=True, divided_fts=[])
 The load data function has several parameters that allow some basic fearture engineering of the data. This allows us to both tweak the feature engineering live and integrate it easily into some hyperparameter optimization. This might be especially useful considering that last time part of the model improvement iterations was selecting different hyperparams.
 
 
+Load the dataset (or cached version) with several params as feature engineering.
 Params:
 - test: Whether to return train or test data, by default returns train.
 - add_day_parts: Whether to create one-hot columns whether the event is in a certain part of day. Default is False.
 - divided_fts: What features to divide by each other to create new features, a list of column names, an empty list or 'all' for all column names. Default empty list.
-- caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Default is true.
+- add_seasons: Whether to add in which season a date belongs. The seasons are four onne-hot columns named season_0, season_1, etc. representing winter, spring, etc.
+- caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Default is true. Caching happens in two ways. First it checks all the arguments passed to the function and checks whether we have a df exactly matching these requirements. Else it starts building the df according to the feature generation requirements, but for most buildsteps it checks whether it has the result of this build step in cache already. Of course the latter caching is assuming non-interactive build steps (i.e. the results of dayparts doesn't change to operation for adding seasons) else the needed cache becomes exponential and instead of saving the result fo a build operation and concatenating it with the df we would have to save the result of the build operation on the df in the df itself making for a huge cache. Improvements welcome.
 
 ### Caching of load_data
 When running hyperparam selection don't worry about regenerating the dataset using different parameters giving overhead. I'll try to integrate memoization/caching for this (locally on your PC, so nothing pushed to github). So the next time you call the function with the same arguments it will return something cached.

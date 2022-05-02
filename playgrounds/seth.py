@@ -1,9 +1,9 @@
 from doctest import OutputChecker
 from data.load import load_data
 
-df = load_data(test=False, add_day_parts=True, fts_operations=[('price_usd', 'all', 'div')], add_seasons=True)
+df = load_data(test=False, add_day_parts=True, fts_operations=[('price_usd', 'all', 'div')], add_seasons=True, num_rows=1000)
 
-df.to_csv('test.csv')
+# df.to_csv('test.csv')
 
 print(df)
 # num_rows

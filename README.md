@@ -12,7 +12,10 @@ pip install -e .
 ```
 from data.load import load_data
 
-load_data(test=False, add_day_parts=True, divided_fts=[])
+load_data(test=False, add_day_parts=True, fts_operations=[])
+
+# Another example
+df = load_data(test=False, add_day_parts=True, fts_operations=[('price_usd', 'all', 'div')], add_seasons=True, num_rows=1000)
 ```
 
 ### Load data parameters

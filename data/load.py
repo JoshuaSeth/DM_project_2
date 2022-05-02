@@ -20,7 +20,7 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
     Params:
     - test: Whether to return train or test data, by default returns train.
     - add_day_parts: Whether to create one-hot columns whether the event is in a certain part of day. Default is False.
-    - fts_operations: What operationns to apply to what features to create new features. A list of 3-tuples. For example if you want to divide price by distance and get the difference between visitor_starrating and prop_starrrating you do [('price_usd', 'orig_destination_distance', 'div'), ('prop_starrating', 'visitor_hist_starrating')]. So the first two items of the tuple are column names and the third item of the tuple is the applied operation. Default empty list. This operation is applied last so you can also divide by season, daypart or other intermediary generated features. You can provide the string 'all' to any of the positions in the tuple. When doing this for the first or second position it means it will apply this operation to all the columns. When doing this for the third position it means it will apply all possible operations to the two given columns. For example: [('price_usd', 'orig_destination_distance', 'all')] will create three new columns in the df for all 3 operations. [('price_usd', 'all', 'div')] will divide the price by all other columns in the df. Theoretically you could be extremely extensive and provide all operations to all columns by [('all', 'all', 'all')] which will add 12000 columns.
+    - fts_operations: What operationns to apply to what features to create new features. A list of 3-tuples. For example if you want to divide price by distance and get the difference between visitor_starrating and prop_starrrating you do [('price_usd', 'orig_destination_distance', 'div'), ('prop_starrating', 'visitor_hist_starrating', 'diff')]. So the first two items of the tuple are column names and the third item of the tuple is the applied operation. Default empty list. This operation is applied last so you can also divide by season, daypart or other intermediary generated features. You can provide the string 'all' to any of the positions in the tuple. When doing this for the first or second position it means it will apply this operation to all the columns. When doing this for the third position it means it will apply all possible operations to the two given columns. For example: [('price_usd', 'orig_destination_distance', 'all')] will create three new columns in the df for all 3 operations. [('price_usd', 'all', 'div')] will divide the price by all other columns in the df. Theoretically you could be extremely extensive and provide all operations to all columns by [('all', 'all', 'all')] which will add 12000 columns.
     Currently supported operations:
         - 'diff': absolute difference
         - 'div': division
@@ -36,7 +36,7 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
     - caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Main reason for setting it to false is that each cached df can easily be 4GB. Default is true. Caching happens in two ways. First it checks all the arguments passed to the function and checks whether we have a df exactly matching these requirements. Else it starts building the df according to the feature generation requirements, but for most buildsteps it checks whether it has the result of this build step in cache already. Of course the latter caching is assuming non-interactive build steps (i.e. the results of dayparts doesn't change to operation for adding seasons) else the needed cache becomes exponential and instead of saving the result fo a build operation and concatenating it with the df we would have to save the result of the build operation on the df in the df itself making for a huge cache. Improvements welcome.'''
     # If we have a cache for a function with these args load it else generate it, save it and return it
     # Cache files are based on the specific argument and the number of rows
-    cache_name = str((test, add_day_parts, hash(tuple(fts_operations)), add_seasons))
+    cache_name = str((test, add_day_parts, hash(tuple(fts_operations)),hash(tuple(same_value_operations)), add_seasons))
     cache_path = prefix + '/caches/' + cache_name+str(num_rows)+'.h5'
     daypart_cachename = prefix+'/caches/dayparts'+str(num_rows)+'.h5'
     seasons_cachename = prefix+'/caches/seasons'+str(num_rows)+'.h5'
@@ -90,10 +90,9 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
             if not has_cache:
                 print('generating same id features')
                 same_vals_df = pd.DataFrame()
-                for col_1, col_2, op_str in tqdm(same_value_operations): # Check if correct
-                    _dict = df.groupby(col_1)[col_2].sum().to_dict() # A dict with the operation applied to each group of the id
+                for col_1, col_2, op_str in tqdm(same_value_operations): # DONT FORGET TO CHANGE TO OPERATION, SUM MUST BE SOMETHING LIKE AGG
+                    _dict = df.groupby(col_1)[col_2].sum().to_dict() # A dict with the operation applied to each group of the id 
                     same_vals_df['same_val_'+col_1+'_'+col_2+'_'+op_str] = df[col_1].progress_apply(get_from_dict, _dict=_dict)
-                    print(same_vals_df['same_val_'+col_1+'_'+col_2+'_'+op_str] )
                 df = pd.concat([df, same_vals_df.set_index(df.index)], axis=1)
                 if caching: same_vals_df.to_hdf(sameid_cachename, key='df')
                 del same_vals_df
@@ -166,7 +165,7 @@ def engineer_ft(df, ft_eng_df, col_1, col_2, op_str):
             ft_eng_df[new_name] = df[col_1]/df[col_2]
         if op_str == 'mult':
             ft_eng_df[new_name] = df[col_1]*df[col_2]
-        if op_str == 'div':
+        if op_str == 'diff':
             ft_eng_df[new_name] = abs(df[col_1]-df[col_2])
 
 def div(x,y):

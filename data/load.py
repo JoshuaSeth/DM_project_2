@@ -7,13 +7,15 @@ from tqdm import tqdm
 import numpy as np
 import os.path
 from os import path
+from warnings import simplefilter
+
 
 # Some global initialization
 tqdm.pandas()
 pd.set_option('io.hdf.default_format','table')
 prefix = os.path.dirname(os.path.abspath(__file__))
 
-def load_data(test=False, add_day_parts=False, fts_operations=[], add_seasons=False, num_rows=None, caching=True):
+def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_operations=[], add_seasons=False, num_rows=None, caching=True):
     '''Load the dataset (or cached version) with several params as feature engineering.\n
     Params:
     - test: Whether to return train or test data, by default returns train.
@@ -23,6 +25,12 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], add_seasons=Fa
         - 'diff': absolute difference
         - 'div': division
         - 'mult': multiplication
+    - same_value_operations: In need of a better name. Operations applied to the set where all values are the same. A list of tuples [()] where the first item of the tuple is the column name where you check for equal values (i.e. 'site_id') and the second item of the tuple is the values for which you want to apply the operation (i.e. 'price_usd') and where the third item of the tuple is the applied operation (i.e. 'avg'). This is the example for location id we were talking about. For example [('site_id', 'price_usd', 'avg')] will give the average price for all rows with this site.
+    Possible values for operations are:
+        - 'avg': average
+        - 'std': standard deviation
+        - 'min': minimum value
+        - 'max' maximum value
     - add_seasons: Whether to add in which season a date belongs. The seasons are four onne-hot columns named season_0, season_1, etc. representing winter, spring, etc.
     - num_rows: Number of rows to read from the DF, by default the full DF is returned. Useful for loading smaller pieces for testing etc.
     - caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Main reason for setting it to false is that each cached df can easily be 4GB. Default is true. Caching happens in two ways. First it checks all the arguments passed to the function and checks whether we have a df exactly matching these requirements. Else it starts building the df according to the feature generation requirements, but for most buildsteps it checks whether it has the result of this build step in cache already. Of course the latter caching is assuming non-interactive build steps (i.e. the results of dayparts doesn't change to operation for adding seasons) else the needed cache becomes exponential and instead of saving the result fo a build operation and concatenating it with the df we would have to save the result of the build operation on the df in the df itself making for a huge cache. Improvements welcome.'''
@@ -32,6 +40,7 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], add_seasons=Fa
     cache_path = prefix + '/caches/' + cache_name+str(num_rows)+'.h5'
     daypart_cachename = prefix+'/caches/dayparts'+str(num_rows)+'.h5'
     seasons_cachename = prefix+'/caches/seasons'+str(num_rows)+'.h5'
+    sameid_cachename = prefix+'/caches/'+ str(hash(tuple(same_value_operations)))+str(num_rows)+'.h5'
     ft_engineer_cachename = prefix+'/caches/'+ str(hash(tuple(fts_operations)))+str(num_rows)+'.h5'
 
     if (path.isfile(cache_path)):
@@ -52,16 +61,11 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], add_seasons=Fa
         # Always translate string to datetime for datetime column no param needed
         df['date_time'] = pd.to_datetime(df['date_time'])
 
-        # Create one-hot columns for the different dayparts
+        # 1. Create one-hot columns for the different dayparts
         if add_day_parts:
-            # Check if dayparts in cache
-            if(path.isfile(daypart_cachename)):
-                print('Using cache for the dayparts suboperation')
-                dayparts_csv = pd.read_hdf(daypart_cachename)
-                df = pd.concat([df, dayparts_csv.set_index(df.index)], axis=1)
-                del dayparts_csv
-            
-            else:  # Else generate them
+            df, has_cache = try_add_cached(daypart_cachename, df)
+            if not has_cache:  # Else generate them
+                print('generating dayparts')
                 dayparts = ['early_morning', 'morning', 'noon', 'eve', 'night', 'late_night']
                 for index, daypart in enumerate(tqdm(dayparts)):
                     print(index+1, "/", len(dayparts), 'Generating datetimes for', daypart)
@@ -69,68 +73,94 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], add_seasons=Fa
                 if caching: df[dayparts].to_hdf(daypart_cachename, key='df')
                  
         
-        # Add one-hot seasons for the dates
+        # 2. Add one-hot seasons for the dates
         if add_seasons:
-            if(path.isfile(seasons_cachename)): #Again check if we have a cached version of this operation
-                print('Using cache for the seasons suboperation')
-                seasons_csv = pd.read_hdf(seasons_cachename)
-                df = pd.concat([df, seasons_csv.set_index(df.index)], axis=1)
-                del seasons_csv
-            else:
+            df, has_cache = try_add_cached(seasons_cachename, df)
+            if not has_cache:
                 print('generating seasons')
                 seasons =  df['date_time'].progress_apply(get_season) # Get season as number 0-3
                 seasons = pd.get_dummies(seasons, prefix='season') # To one-hot
-                print('adding seasons to DF and saving them to cache')
                 df = pd.concat([df, seasons.set_index(df.index)], axis=1)
                 if caching: seasons.to_hdf(seasons_cachename, key='df')
                 del seasons
-        
-        # Create new features by dividing columns by each other
-        if fts_operations != []:
-            if(path.isfile(ft_engineer_cachename)): #Check cache for this specific ft engineering
-                print('Using cache for the feature engineering suboperation')
-                ft_csv = pd.read_hdf(ft_engineer_cachename)
-                df = pd.concat([df, ft_csv.set_index(df.index)], axis=1)
-                del ft_csv
             
-            else: # No cache, generate these features
+        # 3. Adding averages or stds for certain columns where for example id is the same
+        if same_value_operations !=[]:
+            df, has_cache = try_add_cached(sameid_cachename, df)
+            if not has_cache:
+                print('generating same id features')
+                same_vals_df = pd.DataFrame()
+                for col_1, col_2, op_str in tqdm(same_value_operations): # Check if correct
+                    _dict = df.groupby(col_1)[col_2].sum().to_dict() # A dict with the operation applied to each group of the id
+                    same_vals_df['same_val_'+col_1+'_'+col_2+'_'+op_str] = df[col_1].progress_apply(get_from_dict, _dict=_dict)
+                    print(same_vals_df['same_val_'+col_1+'_'+col_2+'_'+op_str] )
+                df = pd.concat([df, same_vals_df.set_index(df.index)], axis=1)
+                if caching: same_vals_df.to_hdf(sameid_cachename, key='df')
+                del same_vals_df
+        
+        # 4. Create new features by dividing columns by each other
+        if fts_operations != []:
+            df, has_cache = try_add_cached(ft_engineer_cachename, df)
+            if not has_cache: # No cache, generate these features
                 print('Feature engineering columns with operations')
                 ft_eng_df = pd.DataFrame()                
-                for col_1, col_2, op_str in tqdm(fts_operations):
+                for col_1, col_2, op_str in fts_operations:
                     engineer_ft(df, ft_eng_df, col_1, col_2, op_str)
                 df = pd.concat([df, ft_eng_df.set_index(df.index)], axis=1)
-                if caching: ft_eng_df.to_hdf(ft_engineer_cachename, key='df')
+                if caching: 
+                    if len(ft_eng_df.columns)<1400:
+                        ft_eng_df.to_hdf(ft_engineer_cachename, key='df')
+                    else: 
+                        print('To many columns (1400+) to cache as hdf. Not caching.')
                 del ft_eng_df
                 
-            
+        # Save the resulting df to a cache in 500 chunks (so you can see progress since this takes long)
         if caching: 
             print('saving result of specific arguments to cache')
-            # Save the resulting df to a cache in 500 chunks (so you can see progress since this takes long)            
-            ixs = np.array_split(df.index, 500)
-            for ix, subset in enumerate(tqdm(ixs)):
-                if ix == 0:
-                    df.loc[subset].to_hdf(cache_path, mode='w', index=True, key='df')
-                else:
-                    df.loc[subset].to_hdf(cache_path, append=True, mode='a', index=True, key='df')
+            if len(df.columns)<1400:
+                ixs = np.array_split(df.index, 500)
+                for ix, subset in enumerate(tqdm(ixs)):
+                    if ix == 0:
+                        df.loc[subset].to_hdf(cache_path, mode='w', index=True, key='df')
+                    else:
+                        df.loc[subset].to_hdf(cache_path, append=True, mode='a', index=True, key='df')
+            else: print('To many columns to cache as HDF. Not caching end result.')
 
         return df
+
+def get_from_dict(x, _dict):
+    '''There might be a better way to do this'''
+    return _dict[x]
+
+def try_add_cached(cache_path, df):
+    '''Will load and concat the cache to the df is there is a cache'''
+    if(path.isfile(cache_path)): #Check cache for this specific ft engineering
+        print('Using cache:', cache_path)
+        loaded_cache = pd.read_hdf(cache_path)
+        df = pd.concat([df, loaded_cache.set_index(df.index)], axis=1)
+        del loaded_cache
+        return df, True
+    return df, False
 
 def engineer_ft(df, ft_eng_df, col_1, col_2, op_str):
     '''Recursively add features to the ft_eng_df. For example (df, pd.Dataframe(), 'price_usd', 'all', 'div'). Meant to be used internally in the load_data function. Changes ft_eng_df inplace.'''
     # Do it recursively if getting an 'all' argument
-    numeric_cols = df.select_dtypes(include=np.number).columns.tolist() # Only numeric columns
-    if col_1 == 'all':
-        for col_name in tqdm(numeric_cols):
-            engineer_ft(df, ft_eng_df, col_name, col_2, op_str)
-    elif col_2 == 'all':
-        for col_name in tqdm(numeric_cols):
-            engineer_ft(df, ft_eng_df, col_1, col_name, op_str)
-    elif op_str == 'all':
-        for operator in tqdm(['diff', 'div', 'mult']):
-            engineer_ft(df, ft_eng_df, col_1, col_2, operator)
+    if 'all' in [col_1, col_2, op_str]:
+        # Filter this warning cause you'll get a thousand
+        simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+        numeric_cols = df.select_dtypes(include=np.number).columns.tolist() # Only numeric columns
+        if col_1 == 'all':
+            for col_name in tqdm(numeric_cols):
+                engineer_ft(df, ft_eng_df, col_name, col_2, op_str)
+        elif col_2 == 'all':
+            for col_name in numeric_cols:
+                engineer_ft(df, ft_eng_df, col_1, col_name, op_str)
+        elif op_str == 'all':
+            for operator in ['diff', 'div', 'mult']:
+                engineer_ft(df, ft_eng_df, col_1, col_2, operator)
     
     # If this was no recursion (or the bottom of the recursion)
-    if 'all' not in [col_1, col_2, op_str]:
+    else:
         new_name = col_1 +'_'+op_str+'_' + col_2
         if op_str == 'div':
             ft_eng_df[new_name] = df[col_1]/df[col_2]

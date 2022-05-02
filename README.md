@@ -6,16 +6,28 @@ For easy importing from sibling directories/folders.
 pip install -e .
 ```
 
+You will find out whatever libraries you need, the most confusing one might be pytables:
+```
+pip install tables
+```
+
 # Examples
 
 ## Loading the data and include some (pre) feature-engineering
 ```
 from data.load import load_data
 
-load_data(test=False, add_day_parts=True, fts_operations=[])
+# Most simple: full dataset no feature generation operations
+df = load_data()
 
-# Another example
+# Load test set with reading it from to cache but without writing it to the cache
+df = load_data(test=True, caching=False)
+
+# Dividing price_usd column by all other columns
 df = load_data(test=False, add_day_parts=True, fts_operations=[('price_usd', 'all', 'div')], add_seasons=True, num_rows=1000)
+
+# Every possible feature engineering operation
+df = load_data(add_day_parts=True, fts_operations=[('all', 'all', 'all')], add_seasons=True)
 ```
 
 ### Load data parameters
@@ -29,6 +41,12 @@ Currently supported operations:
     - 'diff': absolute difference
     - 'div': division
     - 'mult': multiplication
+- same_value_operations: In need of a better name. Operations applied to the set where all values are the same. A list of tuples [()] where the first item of the tuple is the column name where you check for equal values (i.e. 'site_id') and the second item of the tuple is the values for which you want to apply the operation (i.e. 'price_usd') and where the third item of the tuple is the applied operation (i.e. 'avg'). This is the example for location id we were talking about. For example [('site_id', 'price_usd', 'avg')] will give the average price for all rows with this site.
+Possible values for operations are:
+    - 'avg': average
+    - 'std': standard deviation
+    - 'min': minimum value
+    - 'max' maximum value
 - add_seasons: Whether to add in which season a date belongs. The seasons are four onne-hot columns named season_0, season_1, etc. representing winter, spring, etc.
 - num_rows: Number of rows to read from the DF, by default the full DF is returned. Useful for loading smaller pieces for testing etc.
 - caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Main reason for setting it to false is that each cached df can easily be 4GB. Default is true. Caching happens in two ways. First it checks all the arguments passed to the function and checks whether we have a df exactly matching these requirements. Else it starts building the df according to the feature generation requirements, but for most buildsteps it checks whether it has the result of this build step in cache already. Of course the latter caching is assuming non-interactive build steps (i.e. the results of dayparts doesn't change to operation for adding seasons) else the needed cache becomes exponential and instead of saving the result fo a build operation and concatenating it with the df we would have to save the result of the build operation on the df in the df itself making for a huge cache. Improvements welcome.

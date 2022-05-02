@@ -13,8 +13,10 @@ import time
 import matplotlib.pyplot as plt
 import copy
 
+# Load data
 df = load_data(add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
 
+# Split into target and predictors
 y = df['book_bool']
 X = df.drop('book_bool', axis=1)
 

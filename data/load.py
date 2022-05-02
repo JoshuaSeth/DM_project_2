@@ -91,7 +91,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
         
 
 def get_season(x):
-    return int(x.month%12 // 3 + 1)
+    return x.month%12 // 3 + 1
 
 def get_daypart(h):
     '''Translate daytime to daypart'''

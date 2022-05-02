@@ -79,7 +79,9 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
                 df[str(ft_1) +"/"+str(ft_2)] = df[ft_1]/df[ft_2]
             
         # Generate a string of somewhat reasonable length to cache this result under
-        if(caching): df.to_csv(cache_path) # Save cache for next time function with same args is called
+        if(caching): 
+            print('saving result of specific arguments to cache')
+            df.to_csv(cache_path) # Save cache for next time function with same args is called
 
         return df
         

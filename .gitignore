@@ -1,6 +1,6 @@
 # Group 71 DM stuff
-extended.csv
-DM_Project_venv
+*.csv
+.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

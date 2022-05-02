@@ -20,7 +20,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], caching=True):
     - caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Default is true.'''
     # If we have a cache for a function with these args load it else generate it, save it and return it
     cache_name = str((test, add_day_parts, hash(tuple(divided_fts))))
-    cache_path = prefix + "/caches/" + cache_name
+    cache_path = prefix + "/caches/" + cache_name+".csv"
     if (path.isfile(cache_path)):
         print('DF with params is cached, returning cache')
         return pd.read_csv(cache_path)

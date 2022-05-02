@@ -1,4 +1,5 @@
 '''File for the load_data function.'''
+import math
 import os
 from itertools import product
 import pandas as pd
@@ -47,6 +48,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
                 print('Using cache for the dayparts suboperation')
                 dayparts_csv = pd.read_csv(daypart_cachename)
                 df = pd.concat([df, dayparts_csv])
+                del dayparts_csv
             
             else:  # Else generate them
                 dayparts = ['early_morning', 'morning', 'noon', 'eve', 'night', 'late_night']
@@ -54,6 +56,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
                     print(index+1, "/", len(dayparts), 'Generating datetimes for', daypart)
                     df[daypart] = (df['date_time'].progress_apply(get_daypart) == daypart).astype(int)
                 df[dayparts].to_csv(daypart_cachename)
+                 
         
         # Add one-hot seasons for the dates
         if add_seasons:
@@ -61,6 +64,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
                 print('Using cache for the seasons suboperation')
                 seasons_csv = pd.read_csv(seasons_cachename)
                 df = pd.concat([df, seasons_csv])
+                del seasons_csv
             else:
                 print('generating seasons')
                 seasons =  df['date_time'].progress_apply(get_season) # Get season as number 0-3
@@ -68,7 +72,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
                 print('adding seasons to DF and saving them to cache')
                 df = pd.concat([df, seasons])
                 seasons.to_csv(seasons_cachename)
-
+                del seasons
         
         # Create new features by dividing columns by each other
         if divided_fts != []:
@@ -87,7 +91,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
         
 
 def get_season(x):
-    return x.month%12 // 3 + 1
+    return int(x.month%12 // 3 + 1)
 
 def get_daypart(h):
     '''Translate daytime to daypart'''

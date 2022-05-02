@@ -16,7 +16,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
     Params:
     - test: Whether to return train or test data, by default returns train.
     - add_day_parts: Whether to create one-hot columns whether the event is in a certain part of day. Default is False.
-    - divided_fts: What features to divide by each other to create new features, a list of column names, an empty list or 'all' for all column names. Default empty list.
+    - divided_fts: What features to divide by each other to create new features, a list of column names, an empty list or 'all' for all column names. Default empty list. This operation is applied last so you can also divide by season, daypart or other generated features.
     - add_seasons: Whether to add in which season a date belongs. The seasons are four onne-hot columns named season_0, season_1, etc. representing winter, spring, etc.
     - caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Default is true. Caching happens in two ways. First it checks all the arguments passed to the function and checks whether we have a df exactly matching these requirements. Else it starts building the df according to the feature generation requirements, but for most buildsteps it checks whether it has the result of this build step in cache already. Of course the latter caching is assuming non-interactive build steps (i.e. the results of dayparts doesn't change to operation for adding seasons) else the needed cache becomes exponential and instead of saving the result fo a build operation and concatenating it with the df we would have to save the result of the build operation on the df in the df itself making for a huge cache. Improvements welcome.'''
     # If we have a cache for a function with these args load it else generate it, save it and return it
@@ -46,7 +46,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
             if(path.isfile(daypart_cachename)):
                 print('Using cache for the dayparts suboperation')
                 dayparts_csv = pd.read_csv(daypart_cachename)
-                df = pd.concat(df, dayparts_csv)
+                df = pd.concat([df, dayparts_csv])
             
             else:  # Else generate them
                 dayparts = ['early_morning', 'morning', 'noon', 'eve', 'night', 'late_night']
@@ -60,12 +60,12 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
             if(path.isfile(seasons_cachename)): #Again check if we have a cached version of this operation
                 print('Using cache for the seasons suboperation')
                 seasons_csv = pd.read_csv(seasons_cachename)
-                df = pd.concat(df, seasons_csv)
+                df = pd.concat([df, seasons_csv])
             else:
                 print('generating seasons')
-                seasons =  df['date_time'].month%12 // 3 + 1 # Get season as number 0-3
+                seasons =  df['date_time'].dt.month%12 // 3 + 1 # Get season as number 0-3
                 seasons = pd.get_dummies(seasons, prefix='season') # To one-hot
-                df = pd.concat(df, seasons)
+                df = pd.concat([df, seasons])
                 seasons.to_csv(seasons_cachename)
 
         

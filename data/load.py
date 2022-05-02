@@ -21,15 +21,19 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], caching=True):
     # If we have a cache for a function with these args load it else generate it, save it and return it
     cache_name = str((test, add_day_parts, hash(tuple(divided_fts))))
     cache_path = prefix + "/caches/" + cache_name+".csv"
+    daypart_cachename = prefix+'/caches/dayparts.csv'
+
     if (path.isfile(cache_path)):
-        print('DF with params is cached, returning cache')
+        print('DF with these specific params is cached, returning cache')
         return pd.read_csv(cache_path)
     
     # In case we do not have a cache we manually have to apply the operations
     else:
         # Load data
         base_path = prefix + '/test_set_VU_DM.csv' if test else prefix + '/training_set_VU_DM.csv'
-        df = pd.read_csv(base_path)
+        try:
+            df = pd.read_csv(base_path)
+        except Exception as e: print('Couldnt find the data file, can you move the training_set_VU_DM.csv to', base_path, '? This file is to large to share via github. Error:\n\n', e)
 
         # Always translate string to datetime for datetime column no param needed
         df['date_time'] = pd.to_datetime(df['date_time'])
@@ -37,8 +41,8 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], caching=True):
         # Create one-hot columns for the different dayparts
         if add_day_parts:
             # Check if dayparts in cache
-            daypart_cachename = prefix+'/caches/dayparts.csv'
             if(path.isfile(daypart_cachename)):
+                print('Using cache for the dayparts suboperation')
                 df = pd.read_csv(daypart_cachename)
             
             else:  # Else generate them
@@ -49,12 +53,13 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], caching=True):
                 df.to_csv(daypart_cachename)
         
         # Create new features by dividing columns by each other
-        print('Dividing columns by each other to create new columns')
-        numeric_cols = df.select_dtypes(include=np.number).columns.tolist() # Only numeric columns
-        div_fts = numeric_cols if divided_fts == 'all' else divided_fts
-        for ft_1, ft_2 in tqdm(list(product(div_fts, div_fts))): # Products gives all combinations of 2 lists
-            df[str(ft_1) +"/"+str(ft_2)] = df[ft_1]/df[ft_2]
-        
+        if divided_fts != []:
+            print('Dividing columns by each other to create new columns')
+            numeric_cols = df.select_dtypes(include=np.number).columns.tolist() # Only numeric columns
+            div_fts = numeric_cols if divided_fts == 'all' else divided_fts
+            for ft_1, ft_2 in tqdm(list(product(div_fts, div_fts))): # Products gives all combinations of 2 lists
+                df[str(ft_1) +"/"+str(ft_2)] = df[ft_1]/df[ft_2]
+            
         # Generate a string of somewhat reasonable length to cache this result under
         if(caching): df.to_csv(cache_path) # Save cache for next time function with same args is called
 

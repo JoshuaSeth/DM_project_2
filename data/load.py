@@ -65,6 +65,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
                 print('generating seasons')
                 seasons =  df['date_time'].progress_apply(get_season) # Get season as number 0-3
                 seasons = pd.get_dummies(seasons, prefix='season') # To one-hot
+                print('adding seasons to DF and saving them to cache')
                 df = pd.concat([df, seasons])
                 seasons.to_csv(seasons_cachename)
 
@@ -84,7 +85,7 @@ def load_data(test=False, add_day_parts=False, divided_fts=[], add_seasons=False
         
 
 def get_season(x):
-    return x.dt.month%12 // 3 + 1
+    return x.month%12 // 3 + 1
 
 def get_daypart(h):
     '''Translate daytime to daypart'''

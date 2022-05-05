@@ -30,5 +30,5 @@ def ndcg_eval(df_1,df_2):
 		n_5=sum(y_score==5)
 		n_1=sum(y_score==1)
 		y_true=np.append(np.append(np.repeat(5,n_5),np.repeat(1,n_1)),np.repeat(0,len(y_score)-n_1-n_5))
-		ndcg=+ndcg_score([y_true],[y_score])
+		ndcg+=ndcg_score([y_true],[y_score])
 	return(ndcg/len(df_1['srch_id'].unique()))

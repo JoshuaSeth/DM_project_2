@@ -14,19 +14,22 @@ import matplotlib.pyplot as plt
 import copy
 
 # Load data
-df = load_data(add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
+# df = load_data(add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
+
+df = load_data(num_rows=10000)
 
 # Split into target and predictors
-y = df['book_bool']
-X = df.drop('book_bool', axis=1)
+y = df['booking_bool']
+X = df.drop('booking_bool', axis=1)
+X = X.fillna(X.mean())
 
 # Split 
 X_train, X_test, y_train, y_test = train_test_split(X, y)
 
 # Normalize
 scaler = MinMaxScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
+X_train = scaler.fit_transform(X_train.drop('date_time', axis=1))
+X_test = scaler.transform(X_test.drop('date_time', axis=1))
 
 # Set up stakcing regressor
 rf = StackingRegressor([('rf',RandomForestRegressor()), ('br',BayesianRidge()), ('ab',AdaBoostRegressor())])
@@ -35,6 +38,8 @@ rf.fit(X_train, y_train)
 
 # Evaluate
 preds = rf.predict(X_test)
+
+[print(a,b) for a,b in zip(y_test, preds)]
 
 mse = mean_squared_error(y_test, preds)
 mae = mean_absolute_error(y_test, preds)

@@ -33,11 +33,6 @@ X_train, y_train = X, y
 X_test = test
 X_test = X_test.fillna(X.mean()) #Mean of x or mean of x_test?
 
-# Normalize
-print('scaling')
-scaler = MinMaxScaler()
-X_train = scaler.fit_transform(X_train.drop('date_time', axis=1))
-X_test = scaler.transform(X_test.drop('date_time', axis=1))
 
 # Set up stakcing regressor
 rf = StackingRegressor([('rf',RandomForestRegressor()), ('br',BayesianRidge()), ('ab',AdaBoostRegressor())], verbose=1)

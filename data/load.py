@@ -29,6 +29,7 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
     - same_value_operations: In need of a better name. Operations applied to the set where all values are the same. A list of tuples [()] where the first item of the tuple is the column name where you check for equal values (i.e. 'site_id') and the second item of the tuple is the values for which you want to apply the operation (i.e. 'price_usd') and where the third item of the tuple is the applied operation (i.e. 'avg'). This is the example for location id we were talking about. For example [('site_id', 'price_usd', 'avg')] will give the average price for all rows with this site. 
     Possible values for operations are:
         - 'avg': average/mean
+    CURRENTLY CACHING DOES NOT WORK FOR THIS OPERATION. IT DOES SAVE THE RESULTS TO CACHE BUT WHEN YOU CALL LOAD-DATA WITH EXACTLY THE SAME ARGUMENTS THE FUNCTION DOES NOT RECOGNIZE THIS ARGUMENT AS BEING EXACTLY THE SAME AS LAST TIME. MEANING IT WILL REGENERATE THE DATA EVEN THOUGH IT HAS IT IN CACHE.
     - add_seasons: Whether to add in which season a date belongs. The seasons are four onne-hot columns named season_0, season_1, etc. representing winter, spring, etc.
     - num_rows: Number of rows to read from the DF, by default the full DF is returned. Useful for loading smaller pieces for testing etc.
     - scaling: Whether to MinMax scale the data. Added this to save some boilerplate code and so that this intesive operation is now also cached since it takes longer than loading the data itself. Default false

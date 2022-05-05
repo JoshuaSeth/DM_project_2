@@ -38,7 +38,7 @@ rf= StackingRegressor([('rf',RandomForestRegressor()), ('br',BayesianRidge()), (
 # rf=BayesianRidge()
 rf.fit(X, y)
 
-del X
+
 del y
 
 # Split 
@@ -47,6 +47,7 @@ test = load_data(test=True, add_day_parts=True, same_value_operations=[('site_id
 # X_train, X_test, y_train, y_test = train_test_split(X, y)
 X_test = test.drop('date_time', axis=1)
 X_test = X_test.fillna(X.mean()) #Mean of x or mean of x_test?
+del X
 
 # Evaluate``
 print('testing')
@@ -55,6 +56,7 @@ preds = rf.predict(X_test)
 # [print(a,b, c) for a,b, c in zip(test['srch_id'], test['prop_id'],preds)]
 
 ranking = to_ranking(X_test, preds)
+del preds
 
 ranking.to_csv('test_ranking.csv', index=False)
 

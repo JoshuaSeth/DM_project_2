@@ -24,13 +24,13 @@ test = load_data(test=True)
 
 # Split into target and predictors
 y = df['booking_bool']
-X = df.drop(['booking_bool','click_bool', 'position', 'gross_bookings_usd'], axis=1)
+X = df.drop(['booking_bool','click_bool', 'position', 'gross_bookings_usd', 'date_time'], axis=1)
 X = X.fillna(X.mean())
 
 # Split 
 # X_train, X_test, y_train, y_test = train_test_split(X, y)
 X_train, y_train = X, y
-X_test = test
+X_test = test.drop('date_time', axis=1)
 X_test = X_test.fillna(X.mean()) #Mean of x or mean of x_test?
 
 

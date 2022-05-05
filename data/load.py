@@ -94,7 +94,7 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
                 print('generating same id features')
                 same_vals_df = pd.DataFrame()
                 for col_1, col_2, op_str in tqdm(same_value_operations): # DONT FORGET TO CHANGE TO OPERATION, SUM MUST BE SOMETHING LIKE AGG
-                    _dict = df.groupby(col_1)[col_2].sum().to_dict() # A dict with the operation applied to each group of the id 
+                    _dict = df.groupby(col_1)[col_2].mean().to_dict() # A dict with the operation applied to each group of the id 
                     same_vals_df['same_val_'+col_1+'_'+col_2+'_'+op_str] = df[col_1].progress_apply(get_from_dict, _dict=_dict)
                 df = pd.concat([df, same_vals_df.set_index(df.index)], axis=1)
                 if caching: same_vals_df.to_hdf(sameid_cachename, key='df')

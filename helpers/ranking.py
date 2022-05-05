@@ -10,6 +10,6 @@ def to_ranking(test_df, predictions):
     # Convert to three cols with srch property and predicted book bool
     results = pd.DataFrame(zip(test_df['srch_id'], test_df['prop_id'],predictions), columns=['srch_id', 'prop_id', 'y'])
     # Sort the book bools per search
-    results = results.sort_values(['srch_id','y'],ascending=False)
+    results = results.sort_values(['srch_id','y'],ascending=[True, False])
     results = results.drop('y', axis=1)
     return results

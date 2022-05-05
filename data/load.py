@@ -41,10 +41,10 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
     # Cache files are based on the specific argument and the number of rows
     cache_name = str((test, add_day_parts, hash(tuple(fts_operations)),hash(tuple(same_value_operations)), add_seasons, scaling, fill_nan))
     cache_path = prefix + '/caches/' + cache_name+str(num_rows)+'.h5'
-    daypart_cachename = prefix+'/caches/dayparts'+str(num_rows)+'.h5'
-    seasons_cachename = prefix+'/caches/seasons'+str(num_rows)+'.h5'
-    sameid_cachename = prefix+'/caches/'+ str(hash(tuple(same_value_operations)))+str(num_rows)+'.h5'
-    ft_engineer_cachename = prefix+'/caches/'+ str(hash(tuple(fts_operations)))+str(num_rows)+'.h5'
+    daypart_cachename = prefix+'/caches/dayparts'+str((test,num_rows))+'.h5'
+    seasons_cachename = prefix+'/caches/seasons'+str((test,num_rows))+'.h5'
+    sameid_cachename = prefix+'/caches/'+ str(hash(tuple(same_value_operations)))+str((test,num_rows))+'.h5'
+    ft_engineer_cachename = prefix+'/caches/'+ str(hash(tuple(fts_operations)))+str((test,num_rows))+'.h5'
 
     if (path.isfile(cache_path)):
         print('DF with these specific params is cached, returning cached version.')

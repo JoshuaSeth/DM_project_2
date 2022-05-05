@@ -17,11 +17,10 @@ import copy
 from helpers.ranking import to_ranking
 
 # Load data
-# df = load_data(add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
+df = load_data(add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
 
-df = load_data(num_rows=100000)
 
-test = load_data(test=True, num_rows=100000)
+test = load_data(test=True, add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
 
 
 # Split into target and predictors
@@ -40,7 +39,7 @@ X_test = X_test.fillna(X.mean()) #Mean of x or mean of x_test?
 # Set up stakcing regressor
 print('traininng')
 # rf = RandomForestRegressor()
-rf= StackingRegressor([('rf',RandomForestRegressor()), ('br',BayesianRidge()), ('ab',AdaBoostRegressor())], verbose=3, n_jobs=6)
+rf= StackingRegressor([('rf',RandomForestRegressor()), ('br',BayesianRidge()), ('ab',AdaBoostRegressor())], verbose=3, n_jobs=7)
 # rf=BayesianRidge()
 rf.fit(X_train, y_train)
 
@@ -52,7 +51,7 @@ preds = rf.predict(X_test)
 
 ranking = to_ranking(X_test, preds)
 
-ranking.to_csv('test_ranking.csv')
+ranking.to_csv('test_ranking.csv', index=False)
 
 # mse = mean_squared_error(y_test, preds)
 # mae = mean_absolute_error(y_test, preds)

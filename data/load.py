@@ -16,7 +16,7 @@ tqdm.pandas()
 pd.set_option('io.hdf.default_format','table')
 prefix = os.path.dirname(os.path.abspath(__file__))
 
-def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_operations=[], add_seasons=False, num_rows=None, scaling=False, caching=True):
+def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_operations=[], add_seasons=False, num_rows=None, scaling=False, fill_nan=None, caching=True):
     '''Load the dataset (or cached version) with several params as feature engineering.\n
     Params:
     - test: Whether to return train or test data, by default returns train.
@@ -35,6 +35,7 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
     - add_seasons: Whether to add in which season a date belongs. The seasons are four onne-hot columns named season_0, season_1, etc. representing winter, spring, etc.
     - num_rows: Number of rows to read from the DF, by default the full DF is returned. Useful for loading smaller pieces for testing etc.
     - scaling: Whether to MinMax scale the data. Added this to save some boilerplate code and so that this intesive operation is now also cached since it takes longer than loading the data itself. Default false
+    - fill_nan: operation to call on the df to fill nans. Default None so nan's not filled. For example: 'mean' will do df.fillna(df.mean())
     - caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Main reason for setting it to false is that each cached df can easily be 4GB. Default is true. Caching happens in two ways. First it checks all the arguments passed to the function and checks whether we have a df exactly matching these requirements. Else it starts building the df according to the feature generation requirements, but for most buildsteps it checks whether it has the result of this build step in cache already. Of course the latter caching is assuming non-interactive build steps (i.e. the results of dayparts doesn't change to operation for adding seasons) else the needed cache becomes exponential and instead of saving the result fo a build operation and concatenating it with the df we would have to save the result of the build operation on the df in the df itself making for a huge cache. Improvements welcome.'''
     # If we have a cache for a function with these args load it else generate it, save it and return it
     # Cache files are based on the specific argument and the number of rows
@@ -114,6 +115,10 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
                     else: 
                         print('To many columns (1400+) to cache as hdf. Not caching.')
                 del ft_eng_df
+
+        if fill_nan: # Fill Nans, I want this in the load data function so this expesnive operation is cached
+            # I don't think there'll be any NAN id's
+            df.fillna(eval('df.'+fill_nan+'()'))
         
         if scaling: # This also scales the id's which I don't think is a problem since they'll go from unique to unique
             # We can't cache the scaling operation since cachinng it's result is the same as cache the results of all operationns together. This would be double. So it is cached in the end result, not intermediate.

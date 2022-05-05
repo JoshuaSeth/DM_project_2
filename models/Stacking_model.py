@@ -20,7 +20,6 @@ from helpers.ranking import to_ranking
 df = load_data(add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
 
 
-test = load_data(test=True, add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
 
 
 # Split into target and predictors
@@ -28,12 +27,8 @@ print('filling na')
 y = df['booking_bool']
 X = df.drop(['booking_bool','click_bool', 'position', 'gross_bookings_usd', 'date_time'], axis=1)
 X = X.fillna(X.mean())
+del df
 
-# Split 
-# X_train, X_test, y_train, y_test = train_test_split(X, y)
-X_train, y_train = X, y
-X_test = test.drop('date_time', axis=1)
-X_test = X_test.fillna(X.mean()) #Mean of x or mean of x_test?
 
 
 # Set up stakcing regressor
@@ -42,6 +37,15 @@ print('traininng')
 rf= StackingRegressor([('rf',RandomForestRegressor()), ('br',BayesianRidge()), ('ab',AdaBoostRegressor())], verbose=3, n_jobs=7)
 # rf=BayesianRidge()
 rf.fit(X_train, y_train)
+
+
+# Split 
+test = load_data(test=True, add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
+
+# X_train, X_test, y_train, y_test = train_test_split(X, y)
+X_train, y_train = X, y
+X_test = test.drop('date_time', axis=1)
+X_test = X_test.fillna(X.mean()) #Mean of x or mean of x_test?
 
 # Evaluate``
 print('testing')

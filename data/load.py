@@ -37,11 +37,11 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
     # If we have a cache for a function with these args load it else generate it, save it and return it
     # Cache files are based on the specific argument and the number of rows
     cache_name = str((test, add_day_parts, hash(tuple(fts_operations)),hash(tuple(same_value_operations)), add_seasons, scaling, fill_nan))
-    cache_path = prefix + '/caches/' + cache_name+str(num_rows)+'.h5'
-    daypart_cachename = prefix+'/caches/dayparts'+str((test,num_rows))+'.h5'
-    seasons_cachename = prefix+'/caches/seasons'+str((test,num_rows))+'.h5'
-    sameid_cachename = prefix+'/caches/'+ str(hash(tuple(same_value_operations)))+str((test,num_rows))+'.h5'
-    ft_engineer_cachename = prefix+'/caches/'+ str(hash(tuple(fts_operations)))+str((test,num_rows))+'.h5'
+    cache_path = prefix +os.sep+ 'caches'+os.sep + cache_name+str(num_rows)+'.h5'
+    daypart_cachename = prefix+os.sep+'caches'+os.sep+'dayparts'+str((test,num_rows))+'.h5'
+    seasons_cachename = prefix+os.sep+'caches'+os.sep+'seasons'+str((test,num_rows))+'.h5'
+    sameid_cachename = prefix+os.sep+'caches'+os.sep+ str(hash(tuple(same_value_operations)))+str((test,num_rows))+'.h5'
+    ft_engineer_cachename = prefix+os.sep+'caches'+os.sep+ str(hash(tuple(fts_operations)))+str((test,num_rows))+'.h5'
 
     if (path.isfile(cache_path)):
         print('DF with these specific params is cached, returning cached version.')
@@ -51,7 +51,7 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
     else:
         # Load data
         print('No cache for this specific request, start loading base df from disk.')
-        base_path = prefix + '/test_set_VU_DM.csv' if test else prefix + '/training_set_VU_DM.csv'
+        base_path = prefix + os.sep+'test_set_VU_DM.csv' if test else prefix + os.sep+'training_set_VU_DM.csv'
         try:
             df = pd.read_csv(base_path, nrows=num_rows)
         except Exception as e: 

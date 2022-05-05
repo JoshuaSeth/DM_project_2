@@ -36,14 +36,15 @@ print('traininng')
 # rf = RandomForestRegressor()
 rf= StackingRegressor([('rf',RandomForestRegressor()), ('br',BayesianRidge()), ('ab',AdaBoostRegressor())], verbose=3, n_jobs=7)
 # rf=BayesianRidge()
-rf.fit(X_train, y_train)
+rf.fit(X, y)
 
+del X
+del y
 
 # Split 
 test = load_data(test=True, add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
 
 # X_train, X_test, y_train, y_test = train_test_split(X, y)
-X_train, y_train = X, y
 X_test = test.drop('date_time', axis=1)
 X_test = X_test.fillna(X.mean()) #Mean of x or mean of x_test?
 

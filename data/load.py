@@ -18,10 +18,10 @@ prefix = os.path.dirname(os.path.abspath(__file__))
 
 
 
-def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_operations=[], add_seasons=False, num_rows=None, scaling=False, fill_nan=None,caching=True):
+def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_operations=[], add_seasons=False, num_rows=None, scaling=False, fill_nan=None,caching=True):
     '''Load the dataset (or cached version) with several params as feature engineering.\n A set of 30 Search ids is withheld to function as test_set for our kaggle-like evaluation function.
     Params:
-    - test: Whether to return train or test data, by default returns train.
+    - test: Whether to return train personal ndcg test (100 srch_ids) or kaggle test data (large). Possible values 'train', 'kaggle_test', 'our_test'. Default: 'train'
     - add_day_parts: Whether to create one-hot columns whether the event is in a certain part of day. Default is False.
     - fts_operations: What operationns to apply to what features to create new features. A list of 3-tuples. For example if you want to divide price by distance and get the difference between visitor_starrating and prop_starrrating you do [('price_usd', 'orig_destination_distance', 'div'), ('prop_starrating', 'visitor_hist_starrating', 'diff')]. So the first two items of the tuple are column names and the third item of the tuple is the applied operation. Default empty list. This operation is applied last so you can also divide by season, daypart or other intermediary generated features. You can provide the string 'all' to any of the positions in the tuple. When doing this for the first or second position it means it will apply this operation to all the columns. When doing this for the third position it means it will apply all possible operations to the two given columns. For example: [('price_usd', 'orig_destination_distance', 'all')] will create three new columns in the df for all 3 operations. [('price_usd', 'all', 'div')] will divide the price by all other columns in the df. Theoretically you could be extremely extensive and provide all operations to all columns by [('all', 'all', 'all')] which will add 12000 columns.
     Currently supported operations:
@@ -39,12 +39,12 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
     - caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Main reason for setting it to false is that each cached df can easily be 4GB. Default is true. Caching happens in two ways. First it checks all the arguments passed to the function and checks whether we have a df exactly matching these requirements. Else it starts building the df according to the feature generation requirements, but for most buildsteps it checks whether it has the result of this build step in cache already. Of course the latter caching is assuming non-interactive build steps (i.e. the results of dayparts doesn't change to operation for adding seasons) else the needed cache becomes exponential and instead of saving the result fo a build operation and concatenating it with the df we would have to save the result of the build operation on the df in the df itself making for a huge cache. Improvements welcome.'''
     # If we have a cache for a function with these args load it else generate it, save it and return it
     # Cache files are based on the specific argument and the number of rows
-    cache_name = str((test, add_day_parts, hash(tuple(fts_operations)),hash(tuple(same_value_operations)), add_seasons, scaling, fill_nan))
+    cache_name = str((mode, add_day_parts, hash(tuple(fts_operations)),hash(tuple(same_value_operations)), add_seasons, scaling, fill_nan))
     cache_path = prefix +os.sep+ 'caches'+os.sep + cache_name+str(num_rows)+'.h5'
-    daypart_cachename = prefix+os.sep+'caches'+os.sep+'dayparts'+str((test,num_rows))+'.h5'
-    seasons_cachename = prefix+os.sep+'caches'+os.sep+'seasons'+str((test,num_rows))+'.h5'
-    sameid_cachename = prefix+os.sep+'caches'+os.sep+ str(hash(tuple(same_value_operations)))+str((test,num_rows))+'.h5'
-    ft_engineer_cachename = prefix+os.sep+'caches'+os.sep+ str(hash(tuple(fts_operations)))+str((test,num_rows))+'.h5'
+    daypart_cachename = prefix+os.sep+'caches'+os.sep+'dayparts'+str((mode,num_rows))+'.h5'
+    seasons_cachename = prefix+os.sep+'caches'+os.sep+'seasons'+str((mode,num_rows))+'.h5'
+    sameid_cachename = prefix+os.sep+'caches'+os.sep+ str(hash(tuple(same_value_operations)))+str((mode,num_rows))+'.h5'
+    ft_engineer_cachename = prefix+os.sep+'caches'+os.sep+ str(hash(tuple(fts_operations)))+str((mode,num_rows))+'.h5'
 
     if (path.isfile(cache_path)):
         print('DF with these specific params is cached, returning cached version.')
@@ -56,18 +56,21 @@ def load_data(test=False, add_day_parts=False, fts_operations=[], same_value_ope
     else:
         # Load data
         print('No cache for this specific request, start loading base df from disk.')
-        base_path = prefix + os.sep+'test_set_VU_DM.csv' if test else prefix + os.sep+'training_set_VU_DM.csv'
+        base_path = prefix + os.sep+'test_set_VU_DM.csv' if mode=='kaggle_test' else prefix + os.sep+'training_set_VU_DM.csv'
         try:
             df = pd.read_csv(base_path, nrows=num_rows)
         except Exception as e: 
             print('Couldnt find the data file, can you move the training_set_VU_DM.csv to', base_path, '? This file is to large to share via github. Error:\n', e) 
             return
-
+        
         # Always translate string to datetime for datetime column no param needed
         df['date_time'] = pd.to_datetime(df['date_time'])
 
-        # Withhold kaggle test set
-        df=df[~df['srch_id'].isin(kaggle_test_ids)]
+        # Withhold kaggle test set or only return that one
+        if mode == 'train':
+            df=df[~df['srch_id'].isin(kaggle_test_ids)]
+        if mode == 'our_test':
+            df=df[df['srch_id'].isin(kaggle_test_ids)]
 
         # 1. Create one-hot columns for the different dayparts
         if add_day_parts:

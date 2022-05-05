@@ -14,15 +14,18 @@ import time
 import matplotlib.pyplot as plt
 import copy
 
+from helpers.ranking import to_ranking
+
 # Load data
 # df = load_data(add_day_parts=True, same_value_operations=[('site_id', 'price_usd', 'avg'), ('srch_id', 'price_usd', 'avg')], fts_operations=[('prop_starrating', 'visitor_hist_starrating', 'diff')], add_seasons=True)
 
-df = load_data()
+df = load_data(num_rows=100000)
 
-test = load_data(test=True)
+test = load_data(test=True, num_rows=100000)
 
 
 # Split into target and predictors
+print('filling na')
 y = df['booking_bool']
 X = df.drop(['booking_bool','click_bool', 'position', 'gross_bookings_usd', 'date_time'], axis=1)
 X = X.fillna(X.mean())
@@ -35,7 +38,9 @@ X_test = X_test.fillna(X.mean()) #Mean of x or mean of x_test?
 
 
 # Set up stakcing regressor
-rf = StackingRegressor([('rf',RandomForestRegressor()), ('br',BayesianRidge()), ('ab',AdaBoostRegressor())], verbose=1)
+print('traininng')
+# rf = RandomForestRegressor()
+rf= StackingRegressor([('rf',RandomForestRegressor()), ('br',BayesianRidge()), ('ab',AdaBoostRegressor())], verbose=3, n_jobs=6)
 # rf=BayesianRidge()
 rf.fit(X_train, y_train)
 
@@ -43,11 +48,11 @@ rf.fit(X_train, y_train)
 print('testing')
 preds = rf.predict(X_test)
 
-[print(a,b, c) for a,b, c in zip(test['srch_id'], test['prop_id'],preds)]
+# [print(a,b, c) for a,b, c in zip(test['srch_id'], test['prop_id'],preds)]
 
-results = pd.DataFrame(zip(test['srch_id'], test['prop_id'],preds), columns=['srch_id', 'prop_id' 'y'])
-results = results.sort_values(['srch_id','y'],ascending=False).groupby('srch_id')
-print(results)
+ranking = to_ranking(X_test, preds)
+
+ranking.to_csv('test_ranking.csv')
 
 # mse = mean_squared_error(y_test, preds)
 # mae = mean_absolute_error(y_test, preds)

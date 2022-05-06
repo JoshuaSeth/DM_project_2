@@ -157,10 +157,10 @@ def same_val_op(df, same_vals_df, col_1, col_2, op_str):
         simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
         numeric_cols = df.select_dtypes(include=np.number).columns.tolist() # Only numeric columns
         if col_1 == 'all':
-            for col_name in tqdm(df.columns): #Doesnt need to be numeric
+            for col_name in df.columns: #Doesnt need to be numeric
                 same_val_op(df, same_vals_df, col_name, col_2, op_str)
         elif col_2 == 'all':
-            for col_name in numeric_cols:
+            for col_name in tqdm(numeric_cols): #We do tqdm here cause probably the 'all' argument will be in this position and not in the first or last position. (makes the most sense)
                 same_val_op(df, same_vals_df, col_1, col_name, op_str)
         elif op_str == 'all':
             for operator in ['avg']: # Currently only avg want to extend this

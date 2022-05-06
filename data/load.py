@@ -49,7 +49,8 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
     if (path.isfile(cache_path)):
         print('DF with these specific params is cached, returning cached version.')
         df= pd.read_hdf(cache_path, start=0, stop=num_rows)
-        df=df[~df['srch_id'].isin(kaggle_test_ids)] # Filter kaggle test set
+        if mode == 'train':
+            df=df[~df['srch_id'].isin(kaggle_test_ids)] # Filter kaggle test set
         return df
     
     # In case we do not have a cache we manually have to apply the operations

@@ -25,13 +25,12 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
     - add_day_parts: Whether to create one-hot columns whether the event is in a certain part of day. Default is False.
     - fts_operations: What operationns to apply to what features to create new features. A list of 3-tuples. For example if you want to divide price by distance and get the difference between visitor_starrating and prop_starrrating you do [('price_usd', 'orig_destination_distance', 'div'), ('prop_starrating', 'visitor_hist_starrating', 'diff')]. So the first two items of the tuple are column names and the third item of the tuple is the applied operation. Default empty list. This operation is applied last so you can also divide by season, daypart or other intermediary generated features. You can provide the string 'all' to any of the positions in the tuple. When doing this for the first or second position it means it will apply this operation to all the columns. When doing this for the third position it means it will apply all possible operations to the two given columns. For example: [('price_usd', 'orig_destination_distance', 'all')] will create three new columns in the df for all 3 operations. [('price_usd', 'all', 'div')] will divide the price by all other columns in the df. Theoretically you could be extremely extensive and provide all operations to all columns by [('all', 'all', 'all')] which will add 12000 columns.
     Currently supported operations:
-        - 'diff': absolute difference
-        - 'div': division
-        - 'mult': multiplication
-    - same_value_operations: In need of a better name. Operations applied to the set where all values are the same. A list of tuples [()] where the first item of the tuple is the column name where you check for equal values (i.e. 'site_id') and the second item of the tuple is the values for which you want to apply the operation (i.e. 'price_usd') and where the third item of the tuple is the applied operation (i.e. 'avg'). This is the example for location id we were talking about. For example [('site_id', 'price_usd', 'avg')] will give the average price for all rows with this site. 
+            - 'diff': absolute difference
+            - 'div': division
+            - 'mult': multiplication
+    - same_value_operations: In need of a better name. Operations applied to the set where all values are the same. A list of tuples [()] where the first item of the tuple is the column name where you check for equal values (i.e. 'site_id') and the second item of the tuple is the values for which you want to apply the operation (i.e. 'price_usd') and where the third item of the tuple is the applied operation (i.e. 'avg'). This is the example for location id we were talking about. For example [('site_id', 'price_usd', 'avg')] will give the average price for all rows with this site. This operation is now also extended to include the 'all' keyword. So ('prop_id', 'all', 'avg') will give the average per property id for all other numeric columns. So avg usd for every property, avg desriability for every property, etc. Like competition-winner Zhang had done in his feature engineering (see ppt).
     Possible values for operations are:
-        - 'avg': average/mean
-    CURRENTLY CACHING DOES NOT WORK FOR THIS OPERATION. IT DOES SAVE THE RESULTS TO CACHE BUT WHEN YOU CALL LOAD-DATA WITH EXACTLY THE SAME ARGUMENTS THE FUNCTION DOES NOT RECOGNIZE THIS ARGUMENT AS BEING EXACTLY THE SAME AS LAST TIME. MEANING IT WILL REGENERATE THE DATA EVEN THOUGH IT HAS IT IN CACHE.
+            - 'avg': average/mean
     - add_seasons: Whether to add in which season a date belongs. The seasons are four onne-hot columns named season_0, season_1, etc. representing winter, spring, etc.
     - num_rows: Number of rows to read from the DF, by default the full DF is returned. Useful for loading smaller pieces for testing etc.
     - scaling: Whether to MinMax scale the data. Added this to save some boilerplate code and so that this intesive operation is now also cached since it takes longer than loading the data itself. Default false
@@ -102,9 +101,8 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
             if not has_cache:
                 print('generating same id features')
                 same_vals_df = pd.DataFrame()
-                for col_1, col_2, op_str in tqdm(same_value_operations): # DONT FORGET TO CHANGE TO OPERATION, SUM MUST BE SOMETHING LIKE AGG
-                    _dict = df.groupby(col_1)[col_2].mean().to_dict() # A dict with the operation applied to each group of the id 
-                    same_vals_df['same_val_'+col_1+'_'+col_2+'_'+op_str] = df[col_1].progress_apply(get_from_dict, _dict=_dict)
+                for col_1, col_2, op_str in tqdm(same_value_operations):
+                    same_val_op(df, same_vals_df, col_1, col_2, op_str)
                 df = pd.concat([df, same_vals_df.set_index(df.index)], axis=1)
                 if caching: same_vals_df.to_hdf(sameid_cachename, key='df')
                 del same_vals_df
@@ -151,6 +149,27 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
             else: print('To many columns to cache as HDF. Not caching end result.')
 
         return df
+
+def same_val_op(df, same_vals_df, col_1, col_2, op_str):
+    '''Internal. Recursively add the avg where another column is the same. For example (col_1:'prop_id', col_2: 'price_usd', op_str:'avg' will give the average usd price for all properties, so in whichever row property is the same.'''
+    if 'all' in [col_1, col_2, op_str]:
+        # Filter this warning cause you'll get a thousand
+        simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+        numeric_cols = df.select_dtypes(include=np.number).columns.tolist() # Only numeric columns
+        if col_1 == 'all':
+            for col_name in tqdm(df.columns): #Doesnt need to be numeric
+                same_val_op(df, same_vals_df, col_name, col_2, op_str)
+        elif col_2 == 'all':
+            for col_name in numeric_cols:
+                same_val_op(df, same_vals_df, col_1, col_name, op_str)
+        elif op_str == 'all':
+            for operator in ['avg']: # Currently only avg want to extend this
+                same_val_op(df, same_vals_df, col_1, col_2, operator)
+
+    else:
+        # For a normal item or the bottom of recursion
+        _dict = df.groupby(col_1)[col_2].mean().to_dict() # A dict with the operation applied to each group of the id 
+        same_vals_df['same_val_'+col_1+'_'+col_2+'_'+op_str] = df[col_1].progress_apply(get_from_dict, _dict=_dict)
 
 def get_from_dict(x, _dict):
     '''There might be a better way to do this'''

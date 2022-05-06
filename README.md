@@ -64,7 +64,7 @@ Folder for loading the dataset with the load_data function.
 ## Models
 Folder for building, training and evaluating the ML models for the task. 
 
-### StackingRegressor
+### Random Forest Regressor
 Code complete and working. Did not finished training yet. no evaluation yet.
 
 ### NeuralNet
@@ -87,3 +87,6 @@ Generate the plots for the final chosen model. We have chosen to include these p
 
 ## Playgrounds
 Last time you guys took a different approach for moving your code into the project, that would be fine too, so see what works best for you!
+
+## Submissions
+Might be good to keep track of our previous submissions.

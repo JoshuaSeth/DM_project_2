@@ -10,6 +10,7 @@ import os.path
 from os import path
 from warnings import simplefilter
 from helpers.constants import kaggle_test_ids
+from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
 
 # Some global initialization
 tqdm.pandas()
@@ -18,7 +19,7 @@ prefix = os.path.dirname(os.path.abspath(__file__))
 
 
 
-def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_operations=[], add_seasons=False, num_rows=None, scaling=False, fill_nan=None,caching=True):
+def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_operations=[], order_operations = [], add_seasons=False, add_dist_holidays=False, num_rows=None, scaling=False, fill_nan=None,caching=True):
     '''Load the dataset (or cached version) with several params as feature engineering.\n A set of 30 Search ids is withheld to function as test_set for our kaggle-like evaluation function.
     Params:
     - test: Whether to return train personal ndcg test (100 srch_ids) or kaggle test data (large). Possible values 'train', 'kaggle_test', 'our_test'. Default: 'train'
@@ -31,19 +32,23 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
     - same_value_operations: In need of a better name. Operations applied to the set where all values are the same. A list of tuples [()] where the first item of the tuple is the column name where you check for equal values (i.e. 'site_id') and the second item of the tuple is the values for which you want to apply the operation (i.e. 'price_usd') and where the third item of the tuple is the applied operation (i.e. 'avg'). This is the example for location id we were talking about. For example [('site_id', 'price_usd', 'avg')] will give the average price for all rows with this site. This operation is now also extended to include the 'all' keyword. So ('prop_id', 'all', 'avg') will give the average per property id for all other numeric columns. So avg usd for every property, avg desriability for every property, etc. Like competition-winner Zhang had done in his feature engineering (see ppt).
     Possible values for operations are:
             - 'avg': average/mean
+    - order_operations: Gives the order of a quanity among others with the same value. For example ('srch_id', 'price_usd') gives 1 if this was the highest price for this srch_id, 5 if the was the 5th highest price, etc.  
     - add_seasons: Whether to add in which season a date belongs. The seasons are four onne-hot columns named season_0, season_1, etc. representing winter, spring, etc.
+    - add_dist_to_holidays: Adds a distance to the next and from the last holiday. 
     - num_rows: Number of rows to read from the DF, by default the full DF is returned. Useful for loading smaller pieces for testing etc.
     - scaling: Whether to MinMax scale the data. Added this to save some boilerplate code and so that this intesive operation is now also cached since it takes longer than loading the data itself. Default false
     - fill_nan: UNTESTED operation to call on the df to fill nans. Default None so nan's not filled. For example: 'mean' will do df.fillna(df.mean())
     - caching: Whether to cache a function call for next time. With caching the next time you call a function with the same args it will be loaded from disk and returned. Set it to false to not generate a cache everytime you call a function. Main reason for setting it to false is that each cached df can easily be 4GB. Default is true. Caching happens in two ways. First it checks all the arguments passed to the function and checks whether we have a df exactly matching these requirements. Else it starts building the df according to the feature generation requirements, but for most buildsteps it checks whether it has the result of this build step in cache already. Of course the latter caching is assuming non-interactive build steps (i.e. the results of dayparts doesn't change to operation for adding seasons) else the needed cache becomes exponential and instead of saving the result fo a build operation and concatenating it with the df we would have to save the result of the build operation on the df in the df itself making for a huge cache. Improvements welcome.'''
     # If we have a cache for a function with these args load it else generate it, save it and return it
     # Cache files are based on the specific argument and the number of rows
-    cache_name = str((mode, add_day_parts, hash(tuple(fts_operations)),hash(tuple(same_value_operations)), add_seasons, scaling, fill_nan))
+    cache_name = str((mode, add_day_parts, hash(tuple(fts_operations)),hash(tuple(same_value_operations)), add_seasons, add_dist_holidays, scaling, fill_nan))
     cache_path = prefix +os.sep+ 'caches'+os.sep + cache_name+str(num_rows)+'.h5'
     daypart_cachename = prefix+os.sep+'caches'+os.sep+'dayparts'+str((mode,num_rows))+'.h5'
     seasons_cachename = prefix+os.sep+'caches'+os.sep+'seasons'+str((mode,num_rows))+'.h5'
+    dist_holiday_cachename = prefix+os.sep+'caches'+os.sep+'dist_holiday'+str((mode,num_rows))+'.h5'
     sameid_cachename = prefix+os.sep+'caches'+os.sep+ str(hash(tuple(same_value_operations)))+str((mode,num_rows))+'.h5'
     ft_engineer_cachename = prefix+os.sep+'caches'+os.sep+ str(hash(tuple(fts_operations)))+str((mode,num_rows))+'.h5'
+    order_cachename = prefix+os.sep+'caches'+os.sep+ str(hash(tuple(order_operations)))+str((mode,num_rows))+'.h5'
 
     if (path.isfile(cache_path)):
         print('DF with these specific params is cached, returning cached version.')
@@ -94,8 +99,28 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
                 df = pd.concat([df, seasons.set_index(df.index)], axis=1)
                 if caching: seasons.to_hdf(seasons_cachename, key='df')
                 del seasons
-            
-        # 3. Adding averages or stds for certain columns where for example id is the same
+
+        # 3. Add the distance to the next holiday
+        if add_dist_holidays:
+            df = df.sort_values('date_time')
+            df, has_cache = try_add_cached(dist_holiday_cachename, df)
+            if not has_cache:
+                print('generating holidays')
+                cal = calendar()
+                holidays = cal.holidays(start=df['date_time'].min(), end=df['date_time'].max())
+                holidays = pd.DataFrame(holidays, columns=['holiday'])
+                
+                df = pd.merge_asof(df, holidays, left_on='date_time', right_on='holiday', direction='forward')
+                df = pd.merge_asof(df, holidays, left_on='date_time', right_on='holiday')
+                df['until_holiday'] = df.pop('holiday_x').sub(df['date_time']).dt.days
+                df['since_holiday'] = df['date_time'].sub(df.pop('holiday_y')).dt.days
+                
+                print(df[['date_time', 'until_holiday', 'since_holiday']])
+                if caching: df[['until_holiday', 'since_holiday']].to_hdf(dist_holiday_cachename, key='df')
+                del holidays
+            df = df.sort_values('srch_id')
+
+        # 4. Adding averages or stds for certain columns where for example id is the same
         if same_value_operations !=[]:
             df, has_cache = try_add_cached(sameid_cachename, df)
             if not has_cache:
@@ -107,7 +132,19 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
                 if caching: same_vals_df.to_hdf(sameid_cachename, key='df')
                 del same_vals_df
         
-        # 4. Create new features by dividing columns by each other
+        # 5. Do order operations for example order of this price for the srch id
+        if order_operations !=[]:
+            df, has_cache = try_add_cached(order_cachename, df)
+            if not has_cache:
+                print('generating order features')
+                order_df = pd.DataFrame()
+                for col_1, col_2 in tqdm(order_operations):
+                    order_operate(df, order_df, col_1, col_2)
+                df = pd.concat([df, order_df.set_index(df.index)], axis=1)
+                if caching: order_df.to_hdf(order_cachename, key='df')
+                del order_df
+        
+        # 6. Create new features by dividing columns by each other
         if fts_operations != []:
             df, has_cache = try_add_cached(ft_engineer_cachename, df)
             if not has_cache: # No cache, generate these features
@@ -129,12 +166,10 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
         
         if scaling: # This also scales the id's which I don't think is a problem since they'll go from unique to unique
             # We can't cache the scaling operation since cachinng it's result is the same as cache the results of all operationns together. This would be double. So it is cached in the end result, not intermediate.
+            df[df==np.Infinity]=np.nan
             scaler = MinMaxScaler()
-            dt = df['date_time'].copy() # Rm datetime
-            df = df.drop('date_time', axis=1)
-            cols = df.columns.copy()
-            df = pd.DataFrame(scaler.fit_transform(df), columns=cols)
-            df['date_time'] = dt #Readd datetime
+            cols = df.columns[~df.columns.isin(['date_time', 'srch_id', 'prop_id'])]
+            df[cols]= scaler.fit_transform(df[cols])
                 
         # Save the resulting df to a cache in 500 chunks (so you can see progress since this takes long)
         if caching: 
@@ -170,6 +205,27 @@ def same_val_op(df, same_vals_df, col_1, col_2, op_str):
         # For a normal item or the bottom of recursion
         _dict = df.groupby(col_1)[col_2].mean().to_dict() # A dict with the operation applied to each group of the id 
         same_vals_df['same_val_'+col_1+'_'+col_2+'_'+op_str] = df[col_1].progress_apply(get_from_dict, _dict=_dict)
+    
+        
+
+def order_operate(df, order_df, col_1, col_2):
+    '''Internal. Get other of item in quantity.'''
+    if 'all' in [col_1, col_2]:
+        # Filter this warning cause you'll get a thousand
+        simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+        numeric_cols = df.select_dtypes(include=np.number).columns.tolist() # Only numeric columns
+        if col_1 == 'all':
+            for col_name in df.columns: #Doesnt need to be numeric
+                order_operate(df, order_df, col_name, col_2)
+        elif col_2 == 'all':
+            for col_name in tqdm(numeric_cols): #We do tqdm here cause probably the 'all' argument will be in this position and not in the first or last position. (makes the most sense)
+                order_operate(df, order_df, col_1, col_name)
+
+    else:
+        # For a normal item or the bottom of recursion
+        df = df.sort_values([col_1, col_2], ascending=[True, False])
+        order_df['order_'+col_1+'_'+col_2]= df.groupby(col_1).cumcount()
+    
 
 def get_from_dict(x, _dict):
     '''There might be a better way to do this'''

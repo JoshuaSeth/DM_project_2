@@ -4,7 +4,7 @@ import os
 from itertools import product
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import numpy as np
 import os.path
 from os import path
@@ -187,6 +187,11 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
 
 def same_val_op(df, same_vals_df, col_1, col_2, op_str):
     '''Internal. Recursively add the avg where another column is the same. For example (col_1:'prop_id', col_2: 'price_usd', op_str:'avg' will give the average usd price for all properties, so in whichever row property is the same.'''
+
+    # Don't do operations on things that are only in train set, then tests set will not have the same num cols
+    if not set(['booking_bool','click_bool', 'position', 'gross_bookings_usd']).isdisjoint([col_1, col_2]):
+        return
+
     if 'all' in [col_1, col_2, op_str]:
         # Filter this warning cause you'll get a thousand
         simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
@@ -210,6 +215,10 @@ def same_val_op(df, same_vals_df, col_1, col_2, op_str):
 
 def order_operate(df, order_df, col_1, col_2):
     '''Internal. Get other of item in quantity.'''
+    # Don't do operations on things that are only in train set, then tests set will not have the same num cols
+    if not set(['booking_bool','click_bool', 'position', 'gross_bookings_usd']).isdisjoint([col_1, col_2]):
+        return
+
     if 'all' in [col_1, col_2]:
         # Filter this warning cause you'll get a thousand
         simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
@@ -243,6 +252,10 @@ def try_add_cached(cache_path, df):
 
 def engineer_ft(df, ft_eng_df, col_1, col_2, op_str):
     '''Recursively add features to the ft_eng_df. For example (df, pd.Dataframe(), 'price_usd', 'all', 'div'). Meant to be used internally in the load_data function. Changes ft_eng_df inplace.'''
+    # Don't do operations on things that are only in train set, then tests set will not have the same num cols
+    if not set(['booking_bool','click_bool', 'position', 'gross_bookings_usd']).isdisjoint([col_1, col_2]):
+        return
+        
     # Do it recursively if getting an 'all' argument
     if 'all' in [col_1, col_2, op_str]:
         # Filter this warning cause you'll get a thousand

@@ -168,7 +168,7 @@ def load_data(mode='train', add_day_parts=False, fts_operations=[], same_value_o
             # We can't cache the scaling operation since cachinng it's result is the same as cache the results of all operationns together. This would be double. So it is cached in the end result, not intermediate.
             df[df==np.Infinity]=np.nan
             scaler = MinMaxScaler()
-            cols = df.columns[~df.columns.isin(['date_time', 'srch_id', 'prop_id'])]
+            cols = df.columns[~df.columns.isin(['date_time', 'srch_id', 'prop_id', 'position'])]
             df[cols]= scaler.fit_transform(df[cols])
                 
         # Save the resulting df to a cache in 500 chunks (so you can see progress since this takes long)
